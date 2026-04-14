@@ -1,0 +1,67 @@
+[
+  {
+    "id": "H-001",
+    "familyName": "Martinez",
+    "district": "SE",
+    "bedsAvailable": 2,
+    "languages": ["Spanish", "English"],
+    "dietaryCapability": ["Halal"],
+    "therapyProximityMiles": 22,
+    "specialNeedsLicensed": false,
+    "currentChildrenCount": 1,
+    "petsInHome": false,
+    "notes": "Warm, established foster family with one child currently placed. Mrs. Martinez is a former school aide and is comfortable supporting children with learning differences. Home is in the SE district near several elementary schools. Halal meals are a regular part of the household routine."
+  },
+  {
+    "id": "H-002",
+    "familyName": "Chen",
+    "district": "NW",
+    "bedsAvailable": 1,
+    "languages": ["English"],
+    "dietaryCapability": ["standard"],
+    "therapyProximityMiles": 3,
+    "specialNeedsLicensed": true,
+    "currentChildrenCount": 0,
+    "petsInHome": true,
+    "notes": "No children currently placed. Licensed for trauma-informed care and have completed advanced training in therapeutic parenting. Located 3 miles from a licensed trauma-focused CBT clinic. Family has a medium-sized dog (labrador) that is gentle but present in the home. Mr. Chen works from home and provides consistent daily structure."
+  },
+  {
+    "id": "H-003",
+    "familyName": "Okafor",
+    "district": "SE",
+    "bedsAvailable": 1,
+    "languages": ["Somali", "English"],
+    "dietaryCapability": ["Halal"],
+    "therapyProximityMiles": 14,
+    "specialNeedsLicensed": false,
+    "currentChildrenCount": 2,
+    "petsInHome": false,
+    "notes": "Experienced foster family with two children currently placed, both school-aged. Somali is spoken at home alongside English, and the family maintains a fully Halal household. Mrs. Okafor has strong ties to the local Somali community and can provide cultural continuity for children from similar backgrounds. Home is at capacity for younger children but has one bed available for an older or single placement."
+  },
+  {
+    "id": "H-004",
+    "familyName": "Rivera",
+    "district": "SW",
+    "bedsAvailable": 3,
+    "languages": ["Spanish", "English"],
+    "dietaryCapability": ["Halal", "Kosher"],
+    "therapyProximityMiles": 8,
+    "specialNeedsLicensed": true,
+    "currentChildrenCount": 0,
+    "petsInHome": false,
+    "notes": "No children currently placed — home is open and ready. The Rivera family is one of the most versatile placements in the system. Licensed for trauma and special needs. Both parents are bilingual and the household accommodates Halal and Kosher dietary requirements without issue. Mrs. Rivera is a pediatric nurse. No pets. Strong preference for sibling groups or children with complex medical or behavioral needs."
+  },
+  {
+    "id": "H-005",
+    "familyName": "Thompson",
+    "district": "NE",
+    "bedsAvailable": 1,
+    "languages": ["English"],
+    "dietaryCapability": ["standard"],
+    "therapyProximityMiles": 31,
+    "specialNeedsLicensed": false,
+    "currentChildrenCount": 3,
+    "petsInHome": true,
+    "notes": "Three children currently placed, home is near capacity. Family is stable and caring but does not hold special needs or trauma licensing. Significant distance to nearest therapy provider at 31 miles — transportation would be a consistent challenge for children requiring regular clinical appointments. Two cats and a dog in the home. Best suited for lower-needs placements where proximity to services is not critical."
+  }
+]
