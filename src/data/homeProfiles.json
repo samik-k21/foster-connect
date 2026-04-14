@@ -1,0 +1,94 @@
+[
+    {
+        "id": "H-001",
+        "familyName": "Martinez family",
+        "district": "SE",
+        "bedsAvailable": 2,
+        "languages": [
+            "English",
+            "Spanish"
+        ],
+        "dietaryCapability": [
+            "Halal",
+            "Vegetarian"
+        ],
+        "therapyProximityMiles": 22,
+        "specialNeedsLicensed": false,
+        "currentChildrenCount": 1,
+        "petsInHome": false,
+        "notes": "Warm bilingual family, strong cultural fit for Latino and Muslim children. One child already placed. Happy to assist with transport."
+    },
+    {
+        "id": "H-002",
+        "familyName": "Chen family",
+        "district": "NW",
+        "bedsAvailable": 1,
+        "languages": [
+            "English"
+        ],
+        "dietaryCapability": [
+            "Standard",
+            "Vegetarian"
+        ],
+        "therapyProximityMiles": 3,
+        "specialNeedsLicensed": true,
+        "currentChildrenCount": 0,
+        "petsInHome": true,
+        "notes": "Excellent therapy access, licensed for trauma and behavioral needs. English only. Dog in home."
+    },
+    {
+        "id": "H-003",
+        "familyName": "Okafor family",
+        "district": "SE",
+        "bedsAvailable": 3,
+        "languages": [
+            "English",
+            "Somali"
+        ],
+        "dietaryCapability": [
+            "Halal"
+        ],
+        "therapyProximityMiles": 14,
+        "specialNeedsLicensed": false,
+        "currentChildrenCount": 2,
+        "petsInHome": false,
+        "notes": "Large home, Somali-speaking, Halal household. Already at capacity for one more child only. Great cultural match."
+    },
+    {
+        "id": "H-004",
+        "familyName": "Rivera family",
+        "district": "SW",
+        "bedsAvailable": 2,
+        "languages": [
+            "English",
+            "Spanish"
+        ],
+        "dietaryCapability": [
+            "Standard",
+            "Halal",
+            "Kosher"
+        ],
+        "therapyProximityMiles": 8,
+        "specialNeedsLicensed": true,
+        "currentChildrenCount": 0,
+        "petsInHome": false,
+        "notes": "Licensed for medical and behavioral needs. Flexible on diet. No current children. Therapy nearby. Strong all-around placement."
+    },
+    {
+        "id": "H-005",
+        "familyName": "Thompson family",
+        "district": "NE",
+        "bedsAvailable": 1,
+        "languages": [
+            "English"
+        ],
+        "dietaryCapability": [
+            "Standard"
+        ],
+        "therapyProximityMiles": 31,
+        "specialNeedsLicensed": false,
+        "currentChildrenCount": 3,
+        "petsInHome": true,
+        "notes": "English only, standard diet, far from therapy providers. Already busy household. Best for low-needs placements only."
+    }
+]
