@@ -1,0 +1,67 @@
+[
+  {
+    "id": 1,
+    "name": "Rivera Family",
+    "languages": ["English", "Spanish"],
+    "capacity": 2,
+    "current_placements": 1,
+    "licensed_medical": true,
+    "therapy_nearby": true,
+    "school_district": "Madison Unified",
+    "dietary": ["vegetarian", "halal"],
+    "accepts_siblings": true,
+    "age_range": [4, 12]
+  },
+  {
+    "id": 2,
+    "name": "Thompson Family",
+    "languages": ["English"],
+    "capacity": 3,
+    "current_placements": 1,
+    "licensed_medical": false,
+    "therapy_nearby": true,
+    "school_district": "East Side",
+    "dietary": ["none"],
+    "accepts_siblings": false,
+    "age_range": [6, 16]
+  },
+  {
+    "id": 3,
+    "name": "Nguyen Family",
+    "languages": ["English", "Vietnamese"],
+    "capacity": 2,
+    "current_placements": 0,
+    "licensed_medical": true,
+    "therapy_nearby": false,
+    "school_district": "Madison Unified",
+    "dietary": ["vegetarian"],
+    "accepts_siblings": true,
+    "age_range": [0, 10]
+  },
+  {
+    "id": 4,
+    "name": "Jackson Family",
+    "languages": ["English"],
+    "capacity": 4,
+    "current_placements": 2,
+    "licensed_medical": false,
+    "therapy_nearby": true,
+    "school_district": "West Side",
+    "dietary": ["none"],
+    "accepts_siblings": true,
+    "age_range": [8, 18]
+  },
+  {
+    "id": 5,
+    "name": "Patel Family",
+    "languages": ["English", "Hindi", "Gujarati"],
+    "capacity": 2,
+    "current_placements": 0,
+    "licensed_medical": true,
+    "therapy_nearby": true,
+    "school_district": "Madison Unified",
+    "dietary": ["vegetarian", "vegan"],
+    "accepts_siblings": true,
+    "age_range": [0, 8]
+  }
+]
