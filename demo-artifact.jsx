@@ -19,50 +19,6 @@ const intakeNotes = [
   { id:"C-003", childName:"Sofia and Lucia",age:6,  note:"Sofia and Lucia are 6-year-old twins who must be placed together — hard requirement. Both are Spanish-dominant with limited English. Sofia has moderate asthma — pets in the home are a hard medical constraint, animal dander triggers episodes. No dietary restrictions. They adapt well as long as they have each other. ESL support required at new school." },
 ]
 
-// ── Mock match cards ──────────────────────────────────────────────────────────
-
-const MOCK_MATCHES = [
-  {
-    id: 'H-001',
-    familyName: 'Martinez family',
-    score: 84,
-    needs: [
-      { label: 'Halal diet',       met: true  },
-      { label: 'SE district',      met: true  },
-      { label: 'Bilingual',        met: true  },
-      { label: 'Therapy < 15 mi', met: false },
-    ],
-    notes: 'Strong cultural match. Family offered to coordinate therapy transport.',
-    messagingUnlocked: true,
-  },
-  {
-    id: 'H-003',
-    familyName: 'Okafor family',
-    score: 74,
-    needs: [
-      { label: 'Halal diet',       met: true  },
-      { label: 'SE district',      met: true  },
-      { label: 'Bilingual',        met: false },
-      { label: 'Therapy < 15 mi', met: true  },
-    ],
-    notes: 'Halal-capable, SE district. Near capacity — 2 children already placed.',
-    messagingUnlocked: true,
-  },
-  {
-    id: 'H-004',
-    familyName: 'Rivera family',
-    score: 61,
-    needs: [
-      { label: 'Halal diet',             met: true  },
-      { label: 'SE district',            met: false },
-      { label: 'Special needs licensed', met: true  },
-      { label: 'Therapy < 15 mi',       met: true  },
-    ],
-    notes: 'Licensed, Halal-capable, SW district — school transfer would be required.',
-    messagingUnlocked: false,
-  },
-]
-
 // ── Mock thread ───────────────────────────────────────────────────────────────
 
 const MOCK_THREAD = [
@@ -88,6 +44,40 @@ const MOCK_THREAD = [
     timestamp: 'Apr 12 · 3:15 PM',
   },
 ]
+
+// ── Match prompt ─────────────────────────────────────────────────────────────
+
+const MATCH_PROMPT = `You are a foster care placement specialist. Given a child intake note and foster home profiles, extract needs and score compatibility.
+
+1. Extract every child need with urgency: high, medium, or low.
+   high = non-negotiable or clinical (Halal diet, no pets due to asthma, twins must stay together)
+   medium = strongly preferred (school district, language match, therapy proximity)
+   low = nice to have
+
+2. Score each home 0-100. Hard constraint violations score below 40:
+   - Pets in home when child has asthma triggered by animals
+   - Fewer beds than children being placed
+   - Missing trauma license when clinically required
+
+3. For each home: metNeeds array and unmetNeeds array (short plain English strings).
+
+4. messagingUnlocked: true for scores 70 and above.
+
+5. Sort by matchScore descending.
+
+Return ONLY valid JSON, no markdown, no preamble:
+{
+  "childNeeds": [{ "need": "Halal diet", "urgency": "high" }],
+  "rankedMatches": [{
+    "homeId": "H-001",
+    "familyName": "Martinez",
+    "matchScore": 87,
+    "metNeeds": ["Halal diet", "SE school district"],
+    "unmetNeeds": ["Therapy within 10 miles — nearest is 22 miles away"],
+    "notes": "Strong cultural match. Therapy gap needs follow-up.",
+    "messagingUnlocked": true
+  }]
+}`
 
 // ── Style helpers ─────────────────────────────────────────────────────────────
 
@@ -178,9 +168,63 @@ export default function FosterConnect() {
   const [apiKey,          setApiKey]          = useState('')
   const [activeThreadId,  setActiveThreadId]  = useState('H-001')
   const [inputText,       setInputText]       = useState('')
+  const [matches,         setMatches]         = useState([])
+  const [childNeeds,      setChildNeeds]      = useState([])
+  const [loading,         setLoading]         = useState(false)
+  const [error,           setError]           = useState('')
 
   const selectedChild = intakeNotes.find(c => c.id === selectedChildId)
-  const activeMatch   = MOCK_MATCHES.find(m => m.id === activeThreadId)
+  const activeMatch   = matches.find(m => m.id === activeThreadId)
+
+  // ── Analyze ─────────────────────────────────────────────────────────────────
+
+  async function analyze() {
+    if (!apiKey) { setError('Enter your Anthropic API key first'); return }
+    setLoading(true)
+    setError('')
+    setMatches([])
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 2000,
+          system: MATCH_PROMPT,
+          messages: [{
+            role: 'user',
+            content: 'Child intake note:\n' + selectedChild.note + '\n\nFoster home profiles:\n' + JSON.stringify(homeProfiles),
+          }],
+        }),
+      })
+      const data = await res.json()
+      const text = data.content[0].text
+      const clean = text.replace(/```json|```/g, '').trim()
+      const parsed = JSON.parse(clean)
+      setChildNeeds(parsed.childNeeds)
+      const transformed = parsed.rankedMatches.map(match => ({
+        id: match.homeId,
+        familyName: match.familyName,
+        matchScore: match.matchScore,
+        score: match.matchScore,
+        notes: match.notes,
+        messagingUnlocked: match.messagingUnlocked,
+        needs: [
+          ...match.metNeeds.map(label => ({ label, met: true })),
+          ...match.unmetNeeds.map(label => ({ label: label.split('—')[0].trim(), met: false })),
+        ],
+      }))
+      setMatches(transformed)
+    } catch (e) {
+      setError('Analysis failed — check your API key and try again')
+    }
+    setLoading(false)
+  }
 
   // ── Left panel ──────────────────────────────────────────────────────────────
   const leftPanel = (
@@ -259,33 +303,56 @@ export default function FosterConnect() {
         </div>
 
         {/* analyze button */}
-        <button style={{
-          width: '100%', background: '#2563eb', color: '#fff', border: 'none',
-          borderRadius: '4px', padding: '9px', fontSize: '13px',
-          fontWeight: '500', cursor: 'pointer',
-        }}>
-          Analyze placement
+        <button
+          onClick={analyze}
+          disabled={loading}
+          style={{
+            width: '100%', background: loading ? '#93c5fd' : '#2563eb', color: '#fff',
+            border: 'none', borderRadius: '4px', padding: '9px', fontSize: '13px',
+            fontWeight: '500', cursor: loading ? 'default' : 'pointer',
+          }}
+        >
+          {loading ? 'Analyzing…' : 'Analyze placement'}
         </button>
 
-        {/* match cards */}
-        <div>
-          <p style={{
-            margin: '0 0 8px', fontSize: '10px', fontWeight: '600',
-            color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em',
-          }}>
-            Ranked matches — {MOCK_MATCHES.length} homes
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {MOCK_MATCHES.map(m => (
-              <MatchCard
-                key={m.id}
-                match={m}
-                activeId={activeThreadId}
-                onOpenThread={setActiveThreadId}
-              />
-            ))}
+        {/* loading indicator */}
+        {loading && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#6b7280' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
+              <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
+              <circle cx="12" cy="12" r="10" stroke="#d1d5db" strokeWidth="4" />
+              <path fill="#3b82f6" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+            Analyzing placement needs…
           </div>
-        </div>
+        )}
+
+        {/* error */}
+        {error && (
+          <p style={{ margin: 0, fontSize: '12px', color: '#dc2626' }}>{error}</p>
+        )}
+
+        {/* match cards */}
+        {matches.length > 0 && (
+          <div>
+            <p style={{
+              margin: '0 0 8px', fontSize: '10px', fontWeight: '600',
+              color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em',
+            }}>
+              Ranked matches — {matches.length} homes
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {matches.map(m => (
+                <MatchCard
+                  key={m.id}
+                  match={m}
+                  activeId={activeThreadId}
+                  onOpenThread={setActiveThreadId}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
