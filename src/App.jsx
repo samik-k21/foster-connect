@@ -160,7 +160,7 @@ function Avatar({ name, side }) {
   )
 }
 
-function MatchCard({ match, onOpenThread, isActive }) {
+function MatchCard({ match, adjustedScore, delta, onOpenThread, isActive }) {
   return (
     <div
       className={`bg-white border rounded p-4 space-y-2.5 transition-colors ${
@@ -169,7 +169,14 @@ function MatchCard({ match, onOpenThread, isActive }) {
     >
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold text-gray-900">{match.familyName}</span>
-        <ScoreBadge score={match.matchScore} />
+        <div className="flex items-center gap-1.5">
+          {delta !== 0 && (
+            <span className={`text-xs font-medium ${delta > 0 ? 'text-green-600' : 'text-red-500'}`}>
+              {delta > 0 ? `+${delta}` : delta}
+            </span>
+          )}
+          <ScoreBadge score={adjustedScore} />
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-1.5">
@@ -205,6 +212,20 @@ export default function App() {
   const [inputText, setInputText] = useState('')
   const [isDrafting, setIsDrafting] = useState(false)
   const [childNeeds, setChildNeeds] = useState(null)
+  // score adjustments: { [homeId]: number } — tracks cumulative delta per family
+  const [scoreAdjustments, setScoreAdjustments] = useState({})
+
+  const getAdjustedScore = (match) => {
+    const delta = scoreAdjustments[match.id] ?? 0
+    return Math.min(100, Math.max(0, match.matchScore + delta))
+  }
+
+  const adjustScore = (homeId, delta) => {
+    setScoreAdjustments((prev) => ({
+      ...prev,
+      [homeId]: (prev[homeId] ?? 0) + delta,
+    }))
+  }
 
   const messagesEndRef = useRef(null)
 
@@ -221,6 +242,7 @@ export default function App() {
     setActiveThread(null)
     setThreadMessages([])
     setInputText('')
+    setScoreAdjustments({})
   }
 
   const handleAnalyze = async () => {
@@ -284,6 +306,13 @@ export default function App() {
         }),
       },
     ])
+    // Each message sent nudges score up by 1, capped at +10 engagement bonus
+    if (activeThread) {
+      const currentDelta = scoreAdjustments[activeThread.id] ?? 0
+      if (currentDelta < 10) {
+        adjustScore(activeThread.id, 1)
+      }
+    }
     setInputText('')
   }
 
@@ -384,14 +413,19 @@ export default function App() {
               <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">
                 Ranked matches — {rankedMatches.length} homes
               </p>
-              {rankedMatches.map((match) => (
-                <MatchCard
-                  key={match.id}
-                  match={match}
-                  onOpenThread={handleOpenThread}
-                  isActive={activeThread?.id === match.id}
-                />
-              ))}
+              {rankedMatches.map((match) => {
+                const delta = scoreAdjustments[match.id] ?? 0
+                return (
+                  <MatchCard
+                    key={match.id}
+                    match={match}
+                    adjustedScore={getAdjustedScore(match)}
+                    delta={delta}
+                    onOpenThread={handleOpenThread}
+                    isActive={activeThread?.id === match.id}
+                  />
+                )
+              })}
             </div>
           )}
         </div>
@@ -411,7 +445,32 @@ export default function App() {
                   Re: {selectedChild?.childName ?? 'child placement'}
                 </p>
               </div>
-              <ScoreBadge score={activeThread.matchScore} />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => adjustScore(activeThread.id, -5)}
+                  title="Flag concern"
+                  className="text-xs text-red-500 border border-red-200 hover:bg-red-50 px-2 py-0.5 rounded transition-colors"
+                >
+                  − Flag concern
+                </button>
+                <button
+                  onClick={() => adjustScore(activeThread.id, 5)}
+                  title="Good fit"
+                  className="text-xs text-green-600 border border-green-200 hover:bg-green-50 px-2 py-0.5 rounded transition-colors"
+                >
+                  + Good fit
+                </button>
+                <div className="flex items-center gap-1">
+                  {(scoreAdjustments[activeThread.id] ?? 0) !== 0 && (
+                    <span className={`text-xs font-medium ${(scoreAdjustments[activeThread.id] ?? 0) > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                      {(scoreAdjustments[activeThread.id] ?? 0) > 0
+                        ? `+${scoreAdjustments[activeThread.id]}`
+                        : scoreAdjustments[activeThread.id]}
+                    </span>
+                  )}
+                  <ScoreBadge score={getAdjustedScore(activeThread)} />
+                </div>
+              </div>
             </div>
 
             {/* Messages */}
