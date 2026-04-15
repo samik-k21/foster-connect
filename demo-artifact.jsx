@@ -45,6 +45,16 @@ const MOCK_THREAD = [
   },
 ]
 
+// ── Prompts ───────────────────────────────────────────────────────────────────
+
+const DRAFT_PROMPT = `You are assisting a social worker in a foster care placement conversation.
+Draft the next message the social worker should send to the foster family.
+- Warm, professional, specific tone
+- Reference actual child needs by name where relevant
+- Maximum 2-3 sentences
+- Do not start with I or As a social worker
+- Return ONLY the message text. No quotes. No preamble. No JSON.`
+
 // ── Match prompt ─────────────────────────────────────────────────────────────
 
 const MATCH_PROMPT = `You are a foster care placement specialist. Given a child intake note and foster home profiles, extract needs and score compatibility.
@@ -166,12 +176,14 @@ function MatchCard({ match, activeId, onOpenThread }) {
 export default function FosterConnect() {
   const [selectedChildId, setSelectedChildId] = useState('C-001')
   const [apiKey,          setApiKey]          = useState('')
-  const [activeThreadId,  setActiveThreadId]  = useState('H-001')
+  const [activeThreadId,  setActiveThreadId]  = useState(null)
+  const [threads,         setThreads]         = useState({})
   const [inputText,       setInputText]       = useState('')
   const [matches,         setMatches]         = useState([])
   const [childNeeds,      setChildNeeds]      = useState([])
   const [loading,         setLoading]         = useState(false)
   const [error,           setError]           = useState('')
+  const [drafting,        setDrafting]        = useState(false)
 
   const selectedChild = intakeNotes.find(c => c.id === selectedChildId)
   const activeMatch   = matches.find(m => m.id === activeThreadId)
@@ -226,6 +238,78 @@ export default function FosterConnect() {
     setLoading(false)
   }
 
+  // ── Thread helpers ───────────────────────────────────────────────────────────
+
+  function openThread(matchId, familyName) {
+    setActiveThreadId(matchId)
+    setThreads(prev => {
+      if (prev[matchId]) return prev
+      return {
+        ...prev,
+        [matchId]: [{
+          id: Date.now(),
+          sender: 'system',
+          text: 'Thread opened with ' + familyName + '. All messages are logged and supervised.',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }],
+      }
+    })
+  }
+
+  function sendMessage() {
+    if (!inputText.trim() || !activeThreadId) return
+    const msg = {
+      id: Date.now(),
+      sender: 'worker',
+      name: 'S. Rawat',
+      text: inputText.trim(),
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    }
+    setThreads(prev => ({
+      ...prev,
+      [activeThreadId]: [...(prev[activeThreadId] || []), msg],
+    }))
+    setInputText('')
+  }
+
+  async function getDraft() {
+    if (!apiKey || !activeThreadId) return
+    setDrafting(true)
+    const thread = threads[activeThreadId] || []
+    const activeMatchForDraft = matches.find(m => m.id === activeThreadId)
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 300,
+          system: DRAFT_PROMPT,
+          messages: [{
+            role: 'user',
+            content: 'Foster family: ' + (activeMatchForDraft?.familyName || activeThreadId) +
+              '\nChild: ' + selectedChild.childName +
+              '\nChild needs: ' + JSON.stringify(childNeeds) +
+              '\nThread so far:\n' + thread.map(m => m.sender + ': ' + m.text).join('\n'),
+          }],
+        }),
+      })
+      const data = await res.json()
+      setInputText(data.content[0].text.trim())
+    } catch (e) {}
+    setDrafting(false)
+  }
+
+  const bottomRef = React.useRef(null)
+  React.useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [threads, activeThreadId])
+
   // ── Left panel ──────────────────────────────────────────────────────────────
   const leftPanel = (
     <div style={{
@@ -269,7 +353,12 @@ export default function FosterConnect() {
           </label>
           <select
             value={selectedChildId}
-            onChange={e => setSelectedChildId(e.target.value)}
+            onChange={e => {
+              setSelectedChildId(e.target.value)
+              setActiveThreadId(null)
+              setThreads({})
+              setMatches([])
+            }}
             style={{
               width: '100%', boxSizing: 'border-box',
               border: '1px solid #d1d5db', borderRadius: '4px',
@@ -347,7 +436,7 @@ export default function FosterConnect() {
                   key={m.id}
                   match={m}
                   activeId={activeThreadId}
-                  onOpenThread={setActiveThreadId}
+                  onOpenThread={(id) => openThread(id, m.familyName)}
                 />
               ))}
             </div>
@@ -390,7 +479,14 @@ export default function FosterConnect() {
         padding: '16px 20px', background: '#f9fafb',
         display: 'flex', flexDirection: 'column', gap: '16px',
       }}>
-        {MOCK_THREAD.map(msg => {
+        {(threads[activeThreadId] || []).map(msg => {
+          if (msg.sender === 'system') {
+            return (
+              <div key={msg.id} style={{ textAlign: 'center', fontSize: '11px', color: '#9ca3af', fontStyle: 'italic', padding: '4px 0' }}>
+                {msg.text}
+              </div>
+            )
+          }
           const isWorker = msg.sender === 'worker'
           return (
             <div key={msg.id} style={{
@@ -418,6 +514,7 @@ export default function FosterConnect() {
             </div>
           )
         })}
+        <div ref={bottomRef} />
       </div>
 
       {/* input bar */}
@@ -430,6 +527,12 @@ export default function FosterConnect() {
             rows={2}
             value={inputText}
             onChange={e => setInputText(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                sendMessage()
+              }
+            }}
             placeholder="Type a message… (Enter to send)"
             style={{
               flex: 1, boxSizing: 'border-box', resize: 'none',
@@ -439,20 +542,27 @@ export default function FosterConnect() {
             }}
           />
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <button style={{
-              background: '#2563eb', color: '#fff', border: 'none',
-              borderRadius: '4px', padding: '5px 14px',
-              fontSize: '12px', fontWeight: '500', cursor: 'pointer',
-            }}>
+            <button
+              onClick={sendMessage}
+              style={{
+                background: '#2563eb', color: '#fff', border: 'none',
+                borderRadius: '4px', padding: '5px 14px',
+                fontSize: '12px', fontWeight: '500', cursor: 'pointer',
+              }}
+            >
               Send
             </button>
-            <button style={{
-              background: '#fff', color: '#374151',
-              border: '1px solid #d1d5db', borderRadius: '4px',
-              padding: '5px 14px', fontSize: '12px',
-              fontWeight: '500', cursor: 'pointer',
-            }}>
-              AI Draft
+            <button
+              onClick={getDraft}
+              disabled={drafting || !apiKey || !activeThreadId}
+              style={{
+                background: '#fff', color: '#374151',
+                border: '1px solid #d1d5db', borderRadius: '4px',
+                padding: '5px 14px', fontSize: '12px',
+                fontWeight: '500', cursor: 'pointer',
+              }}
+            >
+              {drafting ? 'Drafting...' : 'AI Draft'}
             </button>
           </div>
         </div>
