@@ -2,10 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 import intakeNotes from './data/intakeNotes.json'
 import homeProfiles from './data/homeProfiles.json'
 
-// ── Anthropic config ──────────────────────────────────────────────────────────
-const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
-const MODEL = 'claude-sonnet-4-20250514'
-
 // ── Per-child mock fallbacks (demo never breaks even without API key) ─────────
 const MOCK_BY_CHILD = {
   'C-001': [
@@ -87,71 +83,6 @@ function getInitialThread(childId, homeId) {
   return SEEDED_THREADS[`${childId}:${homeId}`] ?? []
 }
 
-// ── Anthropic helper ──────────────────────────────────────────────────────────
-async function callClaude(apiKey, system, userContent) {
-  const res = await fetch(ANTHROPIC_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 1024,
-      system,
-      messages: [{ role: 'user', content: userContent }],
-    }),
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.error?.message || `API error ${res.status}`)
-  }
-  const data = await res.json()
-  const text = data.content[0].text
-  const match = text.match(/\{[\s\S]*\}/)
-  if (!match) throw new Error('Unexpected response format from Claude')
-  return JSON.parse(match[0])
-}
-
-// ── System prompts ────────────────────────────────────────────────────────────
-const MATCHING_SYSTEM = `You are an expert foster care placement specialist. Given a child's intake note and a list of available foster homes, rank every home from best to worst fit.
-
-Respond ONLY with valid JSON — no prose, no markdown fences:
-{
-  "childNeeds": ["3–6 concise need tags extracted from the intake note"],
-  "rankedMatches": [
-    {
-      "homeId": "H-001",
-      "familyName": "Martinez family",
-      "matchScore": 84,
-      "notes": "2–3 sentence reasoning focusing on why this home does or does not fit this specific child",
-      "messagingUnlocked": true,
-      "metNeeds": ["short label for each need that IS met by this home"],
-      "unmetNeeds": ["short label for each need that is NOT met"]
-    }
-  ]
-}
-
-Rules:
-- Include ALL 5 homes, sorted by matchScore descending
-- matchScore is 0–100; be discriminating — homes that miss hard constraints should score below 30
-- messagingUnlocked is always true
-- Hard constraints (pet-free for asthma, sibling beds, Halal diet, trauma licensing) must heavily penalise homes that fail them
-- metNeeds + unmetNeeds should total 3–4 items per home`
-
-const DRAFT_SYSTEM = `You are a professional foster care caseworker drafting a follow-up message to a foster family about a potential child placement.
-
-Respond ONLY with valid JSON:
-{ "draft": "the message text" }
-
-Rules:
-- 2–4 sentences, warm but professional
-- Advance the conversation — don't repeat what was already said
-- Write in first person as the caseworker
-- Do not start with "Certainly", "Of course", or any filler`
-
 // ── Small components ──────────────────────────────────────────────────────────
 function Spinner({ className = 'text-blue-500' }) {
   return (
@@ -220,8 +151,6 @@ function MatchCard({ match, adjustedScore, delta, onOpenThread, isActive }) {
 
 // ── Main app ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [apiKey, setApiKey]               = useState(() => localStorage.getItem('fc_api_key') ?? '')
-  const [showKey, setShowKey]             = useState(false)
   const [selectedChildId, setSelectedChildId] = useState('C-001')
   const [isAnalyzing, setIsAnalyzing]     = useState(false)
   const [analyzeError, setAnalyzeError]   = useState(null)
@@ -252,11 +181,6 @@ export default function App() {
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
-  const handleApiKeyChange = (val) => {
-    setApiKey(val)
-    localStorage.setItem('fc_api_key', val)
-  }
-
   const handleChildChange = (e) => {
     const id = e.target.value
     setSelectedChildId(id)
@@ -277,36 +201,28 @@ export default function App() {
     setThreadMessages([])
     setScoreAdjustments({})
 
-    if (!apiKey.trim()) {
-      // No key — use mock data immediately so demo never stalls
-      setRankedMatches(MOCK_BY_CHILD[selectedChildId])
-      setAnalyzeError('No API key — showing sample results. Add your Anthropic key above for live AI matching.')
-      setIsAnalyzing(false)
-      return
-    }
-
     try {
-      const userContent = `Child intake note:\n${selectedChild.note}\n\nAvailable homes:\n${JSON.stringify(homeProfiles, null, 2)}`
-      const data = await callClaude(apiKey, MATCHING_SYSTEM, userContent)
-
+      const res = await fetch('/api/match', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intakeNote: selectedChild.note, homeProfiles }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
       const transformed = data.rankedMatches.map(m => ({
-        id: m.homeId,
+        id: m.id,
         familyName: m.familyName,
-        matchScore: m.matchScore,
+        matchScore: m.score ?? m.matchScore,
         notes: m.notes,
         messagingUnlocked: true,
-        needs: [
-          ...m.metNeeds.map(label => ({ label, met: true })),
-          ...m.unmetNeeds.map(label => ({ label, met: false })),
-        ],
+        needs: m.needs,
       }))
-
       setChildNeeds(data.childNeeds)
       setRankedMatches(transformed)
     } catch (err) {
       console.error('Match error:', err)
       setRankedMatches(MOCK_BY_CHILD[selectedChildId])
-      setAnalyzeError(`API error: ${err.message} — showing sample results.`)
+      setAnalyzeError(`Could not reach API — showing sample results.`)
     } finally {
       setIsAnalyzing(false)
     }
@@ -345,23 +261,18 @@ export default function App() {
     setIsDrafting(true)
     setDraftError(null)
 
-    if (!apiKey.trim()) {
-      setDraftError('Add your Anthropic API key to use AI drafting.')
-      setIsDrafting(false)
-      return
-    }
-
     try {
-      const context = [
-        `Child: ${selectedChild.childName}, age ${selectedChild.age}`,
-        childNeeds ? `Key needs: ${childNeeds.join(', ')}` : `Intake note: ${selectedChild.note.slice(0, 300)}`,
-        `Foster home: ${activeThread.familyName} (match score: ${activeThread.matchScore}%)`,
-        '',
-        'Conversation so far:',
-        ...threadMessages.map(m => `${m.sender === 'worker' ? 'Caseworker' : 'Family'}: ${m.text}`),
-      ].join('\n')
-
-      const data = await callClaude(apiKey, DRAFT_SYSTEM, context)
+      const res = await fetch('/api/draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          threadMessages,
+          childNeeds: childNeeds ?? selectedChild?.note,
+          homeName: activeThread?.familyName,
+        }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
       setInputText(data.draft ?? '')
     } catch (err) {
       console.error('Draft error:', err)
@@ -376,33 +287,9 @@ export default function App() {
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50 text-gray-900" style={{ fontFamily: 'system-ui, sans-serif' }}>
 
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-5 py-2.5 flex items-center justify-between gap-4">
-        <div>
-          <span className="text-sm font-semibold text-gray-900">FosterConnect</span>
-          <span className="text-xs text-gray-400 ml-2">Placement matching assistant</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400 whitespace-nowrap">Anthropic API key</span>
-          <div className="relative">
-            <input
-              type={showKey ? 'text' : 'password'}
-              value={apiKey}
-              onChange={e => handleApiKeyChange(e.target.value)}
-              placeholder="sk-ant-…"
-              className="border border-gray-300 rounded px-3 py-1.5 text-xs w-56 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 pr-14"
-            />
-            <button
-              onClick={() => setShowKey(v => !v)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600"
-            >
-              {showKey ? 'hide' : 'show'}
-            </button>
-          </div>
-          {apiKey
-            ? <span className="text-xs text-green-600 font-medium">✓ Key set</span>
-            : <span className="text-xs text-amber-500">No key — mock mode</span>
-          }
-        </div>
+      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-5 py-2.5">
+        <span className="text-sm font-semibold text-gray-900">FosterConnect</span>
+        <span className="text-xs text-gray-400 ml-2">Placement matching assistant</span>
       </div>
 
       {/* ── Two-panel body ───────────────────────────────────────────────────── */}
